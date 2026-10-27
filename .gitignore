@@ -1,0 +1,63 @@
+# ===== Python / venv =====
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ===== Environment / Secrets =====
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# ===== Database =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== Storage / User Uploads =====
+storage/
+!storage/.gitkeep
+
+# ===== Alembic (اختياري - احذف السطرين إذا أردت تتبعها) =====
+# alembic/versions/*.pyc
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+index.html
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Testing / Coverage =====
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Node (إذا index.html جزء من build) =====
+node_modules/
+
+# ===== ملاحظات شخصية (اختياري) =====
+note.txt
