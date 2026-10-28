@@ -1,5 +1,6 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
+from fastapi.params import Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -32,6 +33,50 @@ def save_idempotency(db: Session, key: str, status_code: int, response_body: dic
         db.add(record)
         db.commit()
 
+@router.post("/upload-images", response_model=dict)
+def upload_order_images(
+    images: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["admin", "partner"]:
+        raise HTTPException(status_code=403, detail="Only admins can upload images")
+        
+    if not images or len(images) == 0:
+        raise HTTPException(status_code=400, detail="No images provided")
+        
+    if len(images) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 images allowed")
+
+    saved_images = []
+    for img in images:
+        url = upload_to_cloudinary(img, folder="reson_orders/images")
+        if url:
+            saved_images.append(url)
+
+    return {"image_urls": saved_images}
+
+@router.post("/upload-voices", response_model=dict)
+def upload_order_voices(
+    voice_notes: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["admin", "partner"]:
+        raise HTTPException(status_code=403, detail="Only admins can upload voice notes")
+        
+    if not voice_notes or len(voice_notes) == 0:
+        raise HTTPException(status_code=400, detail="No voice notes provided")
+        
+    if len(voice_notes) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 voice notes allowed")
+
+    saved_voices = []
+    for voice in voice_notes:
+        url = upload_to_cloudinary(voice, folder="reson_orders/voices")
+        if url:
+            saved_voices.append(url)
+
+    return {"voice_urls": saved_voices}
+
 @router.post("/", response_model=dict)
 @limiter.limit("20/minute")
 def create_order(
@@ -43,36 +88,18 @@ def create_order(
     department_id: Optional[str] = Form(None),
     worker_id: Optional[str] = Form(None),
     priority: str = Form("normal"),
-    images: Optional[List[UploadFile]] = File(None),
-    voice_notes: Optional[List[UploadFile]] = File(None),
+    images: Optional[str] = Form(None),
+    voice_notes: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     if current_user.role not in ["admin", "partner"]:
         raise HTTPException(status_code=403, detail="Only admins can create orders")
 
-    # معالجة الصور والمقاطع الصوتية لضمان التعامل معها كقائمة دائماً وتجنب أخطاء Pydantic
-    if images and not isinstance(images, list):
-        images = [images]
-    if voice_notes and not isinstance(voice_notes, list):
-        voice_notes = [voice_notes]
-
     idempotency_key = request.headers.get("X-Idempotency-Key")
     cached_response = check_idempotency(db, idempotency_key)
     if cached_response:
         return cached_response
-
-    if images and len(images) > 0 and images[0].filename != "":
-        if len(images) > 10:
-            raise HTTPException(status_code=400, detail="Maximum 10 images allowed")
-    else:
-        images = None
-
-    if voice_notes and len(voice_notes) > 0 and voice_notes[0].filename != "":
-        if len(voice_notes) > 5:
-            raise HTTPException(status_code=400, detail="Maximum 5 voice notes allowed")
-    else:
-        voice_notes = None
 
     parsed_items = None
     if items:
@@ -81,21 +108,19 @@ def create_order(
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON format for items")
 
-    # رفع الصور إلى Cloudinary
-    saved_images = []
+    parsed_images = []
     if images:
-        for img in images:
-            url = upload_to_cloudinary(img, folder="reson_orders/images")
-            if url:
-                saved_images.append(url)
+        try:
+            parsed_images = json.loads(images)
+        except json.JSONDecodeError:
+            parsed_images = [images]
 
-    # رفع المقاطع الصوتية إلى Cloudinary
-    saved_voices = []
+    parsed_voices = []
     if voice_notes:
-        for voice in voice_notes:
-            url = upload_to_cloudinary(voice, folder="reson_orders/voices")
-            if url:
-                saved_voices.append(url)
+        try:
+            parsed_voices = json.loads(voice_notes)
+        except json.JSONDecodeError:
+            parsed_voices = [voice_notes]
 
     new_order = Order(
         workshop_id=current_user.workshop_id,
@@ -106,8 +131,8 @@ def create_order(
         client_name=client_name,
         details=details,
         items=parsed_items,
-        images_paths=",".join(saved_images) if saved_images else None,
-        voice_notes_paths=",".join(saved_voices) if saved_voices else None,
+        images_paths=",".join(parsed_images) if parsed_images else None,
+        voice_notes_paths=",".join(parsed_voices) if parsed_voices else None,
         status="pending",
         priority=priority
     )
@@ -224,7 +249,7 @@ def update_order(
     if details: order.details = details
     if items:
         try:
-            order.items = json.loads(items)
+            order.items = json.loads(items) if isinstance(items, str) else items
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON format for items")
     if priority: order.priority = priority

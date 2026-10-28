@@ -42,13 +42,13 @@ class DepartmentResponse(BaseModel):
 
 class WorkerCreate(BaseModel):
     name: str
-    department_id: Optional[Any] = None  # يتقبل النص أو الرقم ويحوله تلقائياً
+    department_id: Optional[Any] = None
     phone: Optional[str] = None
 
     @field_validator('department_id', mode='before')
     def parse_department_id(cls, v):
         if v is not None:
-            return str(v)  # تحويل أي رقم أو قيمة إلى نص تلقائياً
+            return str(v)
         return v
 
 class UserResponse(BaseModel):
@@ -74,6 +74,8 @@ class OrderCreate(BaseModel):
     department_id: Optional[Any] = None
     worker_id: Optional[Any] = None
     priority: Optional[str] = "normal"
+    images: Optional[List[str]] = []
+    voice_notes: Optional[List[str]] = []
 
     @field_validator('department_id', 'worker_id', mode='before')
     def parse_ids(cls, v):
