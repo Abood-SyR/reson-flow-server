@@ -79,7 +79,7 @@ def upload_order_voices(
 
 @router.post("/", response_model=dict)
 @limiter.limit("20/minute")
-def create_order(
+async def create_order( 
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -92,14 +92,10 @@ def create_order(
     if cached_response:
         return cached_response
 
-    import asyncio
-    loop = asyncio.get_event_loop()
-    async def get_body():
-        return await request.json()
-    
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        body_data = asyncio.run_coroutine_threadsafe(request.json(), asyncio.get_event_loop()).result()
+    try:
+        body_data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON format")
 
     title = body_data.get("title")
     if not title:
