@@ -146,24 +146,30 @@ async def create_order(
 @router.get("/", response_model=List[dict])
 def get_orders(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     query = db.query(Order).filter(Order.workshop_id == current_user.workshop_id)
-    
-    if current_user.role == "worker":
-        query = query.filter(
-            (Order.worker_id == current_user.id) | 
-            (Order.department_id == current_user.department_id)
-        )
-    
     orders = query.all()
+    
     result = []
     for o in orders:
+        if current_user.role == "worker":
+            is_relevant = False
+            if o.items and isinstance(o.items, list):
+                for item in o.items:
+                    if isinstance(item, dict):
+                        item_worker = item.get("worker_id")
+                        item_dept = item.get("department_id")
+                        
+                        if item_worker == str(current_user.id) or (not item_worker and item_dept == str(current_user.department_id)):
+                            is_relevant = True
+                            break
+            if not is_relevant:
+                continue
+
         result.append({
             "id": o.id,
             "title": o.title,
             "client_name": o.client_name,
             "details": o.details,
             "items": o.items,
-            "department_id": o.department_id,
-            "worker_id": o.worker_id,
             "status": o.status,
             "priority": o.priority,
             "images": o.images_paths.split(",") if o.images_paths else [],
