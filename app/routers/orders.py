@@ -51,6 +51,12 @@ def create_order(
     if current_user.role not in ["admin", "partner"]:
         raise HTTPException(status_code=403, detail="Only admins can create orders")
 
+    # معالجة الصور والمقاطع الصوتية لضمان التعامل معها كقائمة دائماً وتجنب أخطاء Pydantic
+    if images and not isinstance(images, list):
+        images = [images]
+    if voice_notes and not isinstance(voice_notes, list):
+        voice_notes = [voice_notes]
+
     idempotency_key = request.headers.get("X-Idempotency-Key")
     cached_response = check_idempotency(db, idempotency_key)
     if cached_response:
@@ -75,7 +81,7 @@ def create_order(
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON format for items")
 
-    # رفع الصور إلى Cloudinary بدلاً من التخزين المحلي
+    # رفع الصور إلى Cloudinary
     saved_images = []
     if images:
         for img in images:
