@@ -151,31 +151,53 @@ def get_orders(current_user: User = Depends(get_current_user), db: Session = Dep
     result = []
     for o in orders:
         if current_user.role == "worker":
-            is_relevant = False
+            filtered_items = []
             if o.items and isinstance(o.items, list):
                 for item in o.items:
                     if isinstance(item, dict):
-                        item_worker = item.get("worker_id")
                         item_dept = item.get("department_id")
+                        item_worker = item.get("worker_id")
                         
-                        if item_worker == str(current_user.id) or (not item_worker and item_dept == str(current_user.department_id)):
-                            is_relevant = True
-                            break
-            if not is_relevant:
+                        worker_dept_str = str(current_user.department_id) if current_user.department_id else None
+                        current_worker_id_str = str(current_user.id)
+                        
+                        if item_dept and item_dept != worker_dept_str:
+                            continue
+                            
+                        if item_worker:
+                            if item_worker == current_worker_id_str:
+                                filtered_items.append(item)
+                        else:
+                            filtered_items.append(item)
+            
+            if not filtered_items:
                 continue
-
-        result.append({
-            "id": o.id,
-            "title": o.title,
-            "client_name": o.client_name,
-            "details": o.details,
-            "items": o.items,
-            "status": o.status,
-            "priority": o.priority,
-            "images": o.images_paths.split(",") if o.images_paths else [],
-            "voice_notes": o.voice_notes_paths.split(",") if o.voice_notes_paths else [],
-            "created_at": o.created_at
-        })
+                
+            result.append({
+                "id": o.id,
+                "title": o.title,
+                "client_name": o.client_name,
+                "details": o.details,
+                "items": filtered_items,
+                "status": o.status,
+                "priority": o.priority,
+                "images": o.images_paths.split(",") if o.images_paths else [],
+                "voice_notes": o.voice_notes_paths.split(",") if o.voice_notes_paths else [],
+                "created_at": o.created_at
+            })
+        else:
+            result.append({
+                "id": o.id,
+                "title": o.title,
+                "client_name": o.client_name,
+                "details": o.details,
+                "items": o.items,
+                "status": o.status,
+                "priority": o.priority,
+                "images": o.images_paths.split(",") if o.images_paths else [],
+                "voice_notes": o.voice_notes_paths.split(",") if o.voice_notes_paths else [],
+                "created_at": o.created_at
+            })
     return result
 
 @router.patch("/{order_id}/item-status", response_model=dict)
