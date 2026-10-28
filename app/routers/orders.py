@@ -103,23 +103,31 @@ async def create_order(
 
     client_name = body_data.get("client_name")
     details = body_data.get("details")
-    items = body_data.get("items")
-    department_id = body_data.get("department_id")
-    worker_id = body_data.get("worker_id")
+    items = body_data.get("items") 
     priority = body_data.get("priority", "normal")
     
     images_list = body_data.get("images", [])
     voices_list = body_data.get("voice_notes", [])
 
+    processed_items = []
+    if items and isinstance(items, list):
+        for item in items:
+            if isinstance(item, dict):
+                processed_items.append({
+                    "name": item.get("name"),
+                    "quantity": item.get("quantity", "1"),
+                    "department_id": str(item["department_id"]) if item.get("department_id") else None,
+                    "worker_id": str(item["worker_id"]) if item.get("worker_id") else None,
+                    "status": item.get("status", "pending")
+                })
+
     new_order = Order(
         workshop_id=current_user.workshop_id,
         manager_id=current_user.id,
-        worker_id=worker_id,
-        department_id=department_id,
         title=title,
         client_name=client_name,
         details=details,
-        items=items if isinstance(items, list) else None,
+        items=processed_items if processed_items else None,
         images_paths=",".join(images_list) if images_list else None,
         voice_notes_paths=",".join(voices_list) if voices_list else None,
         status="pending",
