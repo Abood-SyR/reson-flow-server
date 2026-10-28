@@ -81,15 +81,6 @@ def upload_order_voices(
 @limiter.limit("20/minute")
 def create_order(
     request: Request,
-    title: str = Form(...),
-    client_name: Optional[str] = Form(None),
-    details: Optional[str] = Form(None),
-    items: Optional[str] = Form(None),
-    department_id: Optional[str] = Form(None),
-    worker_id: Optional[str] = Form(None),
-    priority: str = Form("normal"),
-    images: Optional[str] = Form(None),
-    voice_notes: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -101,26 +92,28 @@ def create_order(
     if cached_response:
         return cached_response
 
-    parsed_items = None
-    if items:
-        try:
-            parsed_items = json.loads(items)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid JSON format for items")
+    import asyncio
+    loop = asyncio.get_event_loop()
+    async def get_body():
+        return await request.json()
+    
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        body_data = asyncio.run_coroutine_threadsafe(request.json(), asyncio.get_event_loop()).result()
 
-    parsed_images = []
-    if images:
-        try:
-            parsed_images = json.loads(images)
-        except json.JSONDecodeError:
-            parsed_images = [images]
+    title = body_data.get("title")
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
 
-    parsed_voices = []
-    if voice_notes:
-        try:
-            parsed_voices = json.loads(voice_notes)
-        except json.JSONDecodeError:
-            parsed_voices = [voice_notes]
+    client_name = body_data.get("client_name")
+    details = body_data.get("details")
+    items = body_data.get("items")
+    department_id = body_data.get("department_id")
+    worker_id = body_data.get("worker_id")
+    priority = body_data.get("priority", "normal")
+    
+    images_list = body_data.get("images", [])
+    voices_list = body_data.get("voice_notes", [])
 
     new_order = Order(
         workshop_id=current_user.workshop_id,
@@ -130,9 +123,9 @@ def create_order(
         title=title,
         client_name=client_name,
         details=details,
-        items=parsed_items,
-        images_paths=",".join(parsed_images) if parsed_images else None,
-        voice_notes_paths=",".join(parsed_voices) if parsed_voices else None,
+        items=items if isinstance(items, list) else None,
+        images_paths=",".join(images_list) if images_list else None,
+        voice_notes_paths=",".join(voices_list) if voices_list else None,
         status="pending",
         priority=priority
     )
